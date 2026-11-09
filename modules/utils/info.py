@@ -1,6 +1,5 @@
 from pyrogram import filters
 from pyrogram.types import Message
-from pyrogram.enums import ChatMemberStatus
 
 from core.clients import app
 from database.mongo import get_warns

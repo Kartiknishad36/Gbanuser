@@ -1,7 +1,5 @@
 """
-/start handler for the bot account — this is what Telegram sends automatically
-when someone taps "Start" in a fresh chat with the bot. Without this, a new
-user opening the bot for the first time would see nothing happen at all.
+/start handler for the bot account.
 """
 from pyrogram import filters
 from pyrogram.types import Message

@@ -19,6 +19,11 @@ def sudo_only(func):
     return wrapper
 
 
+async def load_sudoers():
+    """Called at startup."""
+    pass
+
+
 def cmd(name):
     return filters.command(name, prefixes=PREFIXES)
 

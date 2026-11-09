@@ -1,7 +1,6 @@
 """
 .clone <bot_token> lets someone run their own branded bot that gets the
-full command set (including music/VC) — every handler currently
-registered on the main userbot is also attached to the clone.
+full command set (including music/VC).
 """
 from pyrogram import Client, filters
 from pyrogram.types import Message
@@ -51,8 +50,7 @@ async def clone_cmd(client, message: Message):
         me = await clone_client.get_me()
         await status.edit_text(
             f"✅ Clone started: @{me.username}\n\n"
-            f"It has the full command set, including music — VC playback "
-            f"joins through this bot's own identity."
+            f"It has the full command set, including music."
         )
     except RPCError as e:
         await status.edit_text(f"❌ Failed to start clone: `{e}`")

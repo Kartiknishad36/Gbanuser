@@ -34,7 +34,6 @@ async def gban_cmd(client, message: Message):
     reason = " ".join(message.command[2:]) if len(message.command) > 2 else "No reason"
     await add_gban(user_id, reason)
 
-    # Try to ban in current chat too
     try:
         await client.ban_chat_member(message.chat.id, user_id)
     except Exception:

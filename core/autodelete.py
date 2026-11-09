@@ -13,3 +13,8 @@ async def auto_delete(message: Message, delay: int = 8):
         await message.delete()
     except (RPCError, Exception):
         pass
+
+
+def register_trigger_autodelete(client):
+    """Optional: can be used to auto-delete trigger messages."""
+    pass

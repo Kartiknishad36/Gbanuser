@@ -16,78 +16,75 @@ from pytgcalls.types import (
     VideoQuality,
     StreamEnded,
     GroupCallParticipant,
-    UpdatedGroupCallParticipants,
+    UpdatedGroupCallParticipant,
 )
-from pyrogram import Client
-from pyrogram.types import Message
-import asyncio
-from typing import Dict, List, Optional
 
-# client_id -> PyTgCalls instance
-_engines: Dict[int, PyTgCalls] = {}
-# client_id -> {chat_id: queue list}
-_queues: Dict[int, Dict[int, List[dict]]] = {}
-# client_id -> {chat_id: current track info}
-_current: Dict[int, Dict[int, dict]] = {}
+from core.clients import app, assistant
+
+_INSTANCES: dict[int, PyTgCalls] = {}
+_STARTED: dict[int, bool] = {}
+_QUEUES: dict[int, dict[int, list[dict]]] = {}
+_CURRENT: dict[int, dict[int, dict]] = {}
 
 
-def get_engine(client: Client) -> PyTgCalls:
-    cid = id(client)
-    if cid not in _engines:
-        _engines[cid] = PyTgCalls(client)
-        _queues[cid] = {}
-        _current[cid] = {}
-    return _engines[cid]
+def _resolve_call_client(client):
+    if client is app and assistant is not None:
+        return assistant
+    return client
 
 
-def get_queue(client: Client, chat_id: int) -> List[dict]:
-    cid = id(client)
-    if cid not in _queues:
-        _queues[cid] = {}
-    return _queues[cid].setdefault(chat_id, [])
+def get_pytgcalls(client) -> PyTgCalls:
+    call_client = _resolve_call_client(client)
+    key = id(call_client)
+    if key not in _INSTANCES:
+        pytg = PyTgCalls(call_client)
+        _INSTANCES[key] = pytg
+        _register_handlers(pytg, client)
+    return _INSTANCES[key]
 
 
-def get_current(client: Client) -> Dict[int, dict]:
-    cid = id(client)
-    if cid not in _current:
-        _current[cid] = {}
-    return _current[cid]
+def get_queue(client, chat_id: int) -> list:
+    key = id(_resolve_call_client(client))
+    if key not in _QUEUES:
+        _QUEUES[key] = {}
+    return _QUEUES[key].setdefault(chat_id, [])
 
 
-async def ensure_started(client: Client):
-    engine = get_engine(client)
-    try:
-        await engine.start()
-    except Exception:
-        pass  # already started or will lazy-start
+def get_current(client) -> dict:
+    key = id(_resolve_call_client(client))
+    if key not in _CURRENT:
+        _CURRENT[key] = {}
+    return _CURRENT[key]
 
 
-async def play_track(client: Client, chat_id: int, track: dict, video: bool = False):
-    """Play a single track. track = {title, url, duration, ...}"""
-    engine = get_engine(client)
+async def ensure_started(client):
+    pytg = get_pytgcalls(client)
+    key = id(_resolve_call_client(client))
+    if not _STARTED.get(key):
+        try:
+            await pytg.start()
+            _STARTED[key] = True
+        except Exception:
+            pass
+
+
+async def play_track(client, chat_id: int, track: dict, video: bool = False):
+    pytg = get_pytgcalls(client)
     await ensure_started(client)
-
     stream = MediaStream(
         track["url"],
         audio_parameters=AudioQuality.HIGH,
         video_parameters=VideoQuality.HD_720p if video else None,
     )
-
     current = get_current(client)
     current[chat_id] = track
-
-    try:
-        await engine.play(chat_id, stream)
-    except Exception as e:
-        current.pop(chat_id, None)
-        raise e
+    await pytg.play(chat_id, stream)
 
 
-async def skip_track(client: Client, chat_id: int):
+async def skip_track(client, chat_id: int):
     queue = get_queue(client, chat_id)
     current = get_current(client)
-    engine = get_engine(client)
-
+    pytg = get_pytgcalls(client)
     if queue:
         next_track = queue.pop(0)
         video = next_track.get("video", False)
@@ -96,19 +93,40 @@ async def skip_track(client: Client, chat_id: int):
     else:
         current.pop(chat_id, None)
         try:
-            await engine.leave_call(chat_id)
+            await pytg.leave_call(chat_id)
         except Exception:
             pass
         return None
 
 
-async def stop_all(client: Client, chat_id: int):
+async def stop_all(client, chat_id: int):
     queue = get_queue(client, chat_id)
     queue.clear()
     current = get_current(client)
     current.pop(chat_id, None)
-    engine = get_engine(client)
+    pytg = get_pytgcalls(client)
     try:
-        await engine.leave_call(chat_id)
+        await pytg.leave_call(chat_id)
     except Exception:
         pass
+
+
+def _register_handlers(pytg: PyTgCalls, client):
+    @pytg.on_update(fl.stream_end)
+    async def on_stream_end(_, update: StreamEnded):
+        chat_id = update.chat_id
+        queue = get_queue(client, chat_id)
+        if queue:
+            next_track = queue.pop(0)
+            video = next_track.get("video", False)
+            try:
+                await play_track(client, chat_id, next_track, video=video)
+            except Exception:
+                pass
+        else:
+            current = get_current(client)
+            current.pop(chat_id, None)
+            try:
+                await pytg.leave_call(chat_id)
+            except Exception:
+                pass

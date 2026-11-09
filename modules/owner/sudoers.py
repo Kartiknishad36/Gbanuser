@@ -1,11 +1,14 @@
 from functools import wraps
 from pyrogram import filters
 from pyrogram.types import Message
+
+from core.clients import app
 from config import OWNER_ID, PREFIXES
 from database.mongo import get_sudoers, add_sudo, remove_sudo
 
 
 def sudo_only(func):
+    """Decorator: only OWNER_ID and sudo users can run the command."""
     @wraps(func)
     async def wrapper(client, message: Message, *args, **kwargs):
         user_id = message.from_user.id if message.from_user else 0
@@ -23,7 +26,6 @@ def cmd(name):
 @app.on_message(cmd(["addsudo"]))
 @sudo_only
 async def addsudo_cmd(client, message: Message):
-    from core.clients import app
     if not message.reply_to_message and len(message.command) < 2:
         return await message.reply_text("Reply to a user or give user ID.")
     if message.reply_to_message:

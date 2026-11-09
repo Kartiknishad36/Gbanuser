@@ -8,7 +8,6 @@ from database.mongo import approve_pm, unapprove_pm, get_approved_pm
 
 PREFIXES = [".", "!"]
 
-# Simple in-memory flood tracking for PM Guard
 _pm_warnings: dict[int, int] = {}
 MAX_PM_WARNS = 3
 
@@ -22,7 +21,6 @@ async def pm_guard(client, message: Message):
     if user_id in approved:
         return
 
-    # Ignore commands from sudo (they shouldn't hit this usually)
     if message.text and message.text.startswith((".", "!")):
         return
 

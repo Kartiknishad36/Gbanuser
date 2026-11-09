@@ -1,6 +1,5 @@
 """
-Fetches playable audio/video files via the ArtistBots API / BabyAPI, given a
-YouTube search query or link.
+Fetches playable audio/video files via BabyAPI / ArtistBots API.
 """
 import aiohttp
 from config import BASE_URL, API_KEY
@@ -27,7 +26,6 @@ async def get_result(query: str, video: bool = False) -> dict:
                 raise Exception(f"API returned {resp.status}: {text[:200]}")
             data = await resp.json()
 
-    # Normalize common response shapes
     if "url" in data:
         return {
             "title": data.get("title") or data.get("name") or query,

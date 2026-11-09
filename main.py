@@ -1,30 +1,61 @@
 import asyncio
 import importlib
-import pkgutil
 
 from core.clients import app, bot, assistant
 from core.call_manager import ensure_started
+from core.autodelete import register_trigger_autodelete
+from database.mongo import add_chat
+from modules.owner.sudoers import load_sudoers
+
+# Import every module so its @app.on_message handlers register
+MODULES = [
+    "modules.owner.sudoers",
+    "modules.owner.pmguard",
+    "modules.vc.play",
+    "modules.vc.controls",
+    "modules.global_mod.gban",
+    "modules.global_mod.gmute",
+    "modules.global_mod.gdel",
+    "modules.global_mod.warn",
+    "modules.global_mod.broadcast",
+    "modules.global_mod.chatmod",
+    "modules.global_mod.tagall",
+    "modules.global_mod.shayari",
+    "modules.global_mod.bro",
+    "modules.global_mod.welcome",
+    "modules.owner.clone",
+    "modules.public.login",
+    "modules.public.start",
+    "modules.utils.basics",
+    "modules.utils.info",
+    "modules.utils.fun",
+]
+for m in MODULES:
+    try:
+        importlib.import_module(m)
+    except Exception as e:
+        print(f"[Bot] WARNING: could not load module '{m}': {type(e).__name__}: {e}")
 
 
-async def load_modules():
-    """Dynamically import every module under modules/ so their handlers register."""
-    import modules
+async def track_new_chats():
+    """Keep the `chats` collection updated so global mod tools know where to act."""
+    from pyrogram import filters
 
-    for finder, name, ispkg in pkgutil.walk_packages(modules.__path__, modules.__name__ + "."):
+    @app.on_message(filters.group, group=-1)
+    async def _track(client, message):
         try:
-            importlib.import_module(name)
-            print(f"[Loader] Loaded {name}")
-        except Exception as e:
-            print(f"[Loader] Failed to load {name}: {e}")
+            await add_chat(message.chat.id, message.chat.title or "")
+        except Exception:
+            pass
 
 
 async def main():
-    print("[Bot] Starting...")
-
-    await load_modules()
+    await load_sudoers()
+    await track_new_chats()
+    register_trigger_autodelete(app)
 
     await app.start()
-    print("[Bot] Main userbot client started.")
+    print("[Bot] Userbot client started.")
 
     if bot:
         await bot.start()
